@@ -23,7 +23,7 @@ clap = { version = "4.5.50", features = ["derive", "env"] }
 hex = "0.4.3"
 k256 = { version = "0.14.0", default-features = false, features = ["alloc", "arithmetic", "getrandom", "precomputed-tables", "schnorr", "std"] }
 ml-dsa = { version = "0.1.1", features = ["zeroize"] }
-primitive-types = { version = "0.13.1", features = ["serde"] }
+primitive-types = { version = "0.14.0", features = ["serde"] }
 rand = "0.10.0"
 reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
