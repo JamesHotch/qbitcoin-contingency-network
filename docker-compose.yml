@@ -1,0 +1,197 @@
+name: qbitcoin-devnet
+
+x-qbtc-build: &qbtc-build
+  build:
+    context: .
+  image: qbitcoin-devnet:local
+  restart: unless-stopped
+
+x-signer: &signer
+  <<: *qbtc-build
+  env_file: .env.devnet
+  depends_on:
+    node1:
+      condition: service_healthy
+  expose:
+    - "7000"
+  networks:
+    - qbtc
+
+services:
+  node1:
+    <<: *qbtc-build
+    command: ["qbtc-node", "--chain", "regtest", "--data-dir", "/data/node", "--rpc-bind", "0.0.0.0:58332", "--p2p-bind", "0.0.0.0:58333"]
+    volumes:
+      - node1-data:/data
+    ports:
+      - "58332:58332"
+      - "58333:58333"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:58332/v1/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - qbtc
+
+  node2:
+    <<: *qbtc-build
+    command: ["qbtc-node", "--chain", "regtest", "--data-dir", "/data/node", "--rpc-bind", "0.0.0.0:58332", "--p2p-bind", "0.0.0.0:58333"]
+    volumes:
+      - node2-data:/data
+    ports:
+      - "58342:58332"
+      - "58343:58333"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:58332/v1/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - qbtc
+
+  node3:
+    <<: *qbtc-build
+    command: ["qbtc-node", "--chain", "regtest", "--data-dir", "/data/node", "--rpc-bind", "0.0.0.0:58332", "--p2p-bind", "0.0.0.0:58333"]
+    volumes:
+      - node3-data:/data
+    ports:
+      - "58352:58332"
+      - "58353:58333"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:58332/v1/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - qbtc
+
+  wallet:
+    <<: *qbtc-build
+    env_file: .env.devnet
+    command: ["qbtc-wallet-service", "--chain", "regtest", "--wallet", "/data/dev-wallet.qbtc", "--bind", "0.0.0.0:8080"]
+    volumes:
+      - wallet-data:/data
+    ports:
+      - "8090:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - qbtc
+
+  miner1:
+    <<: *qbtc-build
+    env_file: .env.devnet
+    command: ["qbtc-miner", "--chain", "regtest", "--wallet", "/wallet/dev-wallet.qbtc", "--node-url", "http://node1:58332", "--continuous", "--interval-seconds", "8"]
+    volumes:
+      - wallet-data:/wallet:ro
+    depends_on:
+      wallet:
+        condition: service_healthy
+      node1:
+        condition: service_healthy
+    networks:
+      - qbtc
+
+  miner2:
+    <<: *qbtc-build
+    env_file: .env.devnet
+    command: ["qbtc-miner", "--chain", "regtest", "--wallet", "/wallet/dev-wallet.qbtc", "--node-url", "http://node2:58332", "--continuous", "--interval-seconds", "11"]
+    volumes:
+      - wallet-data:/wallet:ro
+    depends_on:
+      wallet:
+        condition: service_healthy
+      node2:
+        condition: service_healthy
+    networks:
+      - qbtc
+
+  signer0:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "0", "--local-development", "--node-url", "http://node1:58332"]
+  signer1:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "1", "--local-development", "--node-url", "http://node1:58332"]
+  signer2:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "2", "--local-development", "--node-url", "http://node1:58332"]
+  signer3:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "3", "--local-development", "--node-url", "http://node1:58332"]
+  signer4:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "4", "--local-development", "--node-url", "http://node1:58332"]
+  signer5:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "5", "--local-development", "--node-url", "http://node1:58332"]
+  signer6:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "6", "--local-development", "--node-url", "http://node1:58332"]
+  signer7:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "7", "--local-development", "--node-url", "http://node1:58332"]
+  signer8:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "8", "--local-development", "--node-url", "http://node1:58332"]
+  signer9:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "9", "--local-development", "--node-url", "http://node1:58332"]
+  signer10:
+    <<: *signer
+    command: ["qbtc-signer", "--chain", "regtest", "--signer-id", "10", "--local-development", "--node-url", "http://node1:58332"]
+
+  dashboard:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./contrib/dashboard:/usr/share/nginx/html:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      node1:
+        condition: service_healthy
+    networks:
+      - qbtc
+
+  explorer:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./contrib/dashboard:/usr/share/nginx/html:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8081:80"
+    depends_on:
+      node1:
+        condition: service_healthy
+    networks:
+      - qbtc
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      node1:
+        condition: service_healthy
+    networks:
+      - qbtc
+
+networks:
+  qbtc:
+    driver: bridge
+
+volumes:
+  node1-data:
+  node2-data:
+  node3-data:
+  wallet-data:
+  prometheus-data:
+

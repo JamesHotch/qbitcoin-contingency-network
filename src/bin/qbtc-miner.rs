@@ -21,6 +21,10 @@ struct Arguments {
     node_url: String,
     #[arg(long, default_value_t = 1)]
     blocks: u64,
+    #[arg(long, default_value_t = false)]
+    continuous: bool,
+    #[arg(long, default_value_t = 5)]
+    interval_seconds: u64,
 }
 
 #[derive(Serialize)]
@@ -40,7 +44,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .timeout(Duration::from_secs(30))
         .build()?;
 
-    for index in 0..arguments.blocks {
+    let mut index = 0_u64;
+    loop {
         let response = client
             .post(format!("{}/v1/mining/template", arguments.node_url))
             .json(&TemplateRequest {
@@ -62,6 +67,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .text()
             .await?;
         println!("mined {hash}: {result}");
+        index = index.saturating_add(1);
+        if !arguments.continuous && index >= arguments.blocks {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(arguments.interval_seconds)).await;
     }
     Ok(())
 }

@@ -2,7 +2,7 @@ use crate::{
     block::{Block, BlockHeader},
     chain::{ChainError, ChainState, SubmitOutcome},
     crypto::{HybridPublicKeys, RustCryptoProvider},
-    finality::{ConsensusStage, FinalityState},
+    finality::{CheckpointCertificate, CheckpointResult, ConsensusStage, FinalityState},
     mempool::Mempool,
     p2p::{Handshake, P2pError, PeerBook, PeerMessage, read_message, write_message},
     params::{ChainParams, ChainParamsError},
@@ -178,7 +178,6 @@ impl ApiError {
             message: error.to_string(),
         }
     }
-
 }
 
 impl IntoResponse for ApiError {
@@ -202,6 +201,7 @@ pub fn router(state: SharedNode) -> Router {
         .route("/v1/blocks/{height}", get(block_at_height))
         .route("/v1/mempool", get(mempool))
         .route("/v1/transactions", post(submit_transaction))
+        .route("/v1/checkpoints", post(submit_checkpoint))
         .route("/v1/mining/template", post(block_template))
         .route("/v1/blocks", post(submit_block))
         .layer(RequestBodyLimitLayer::new(9 * 1024 * 1024))
@@ -349,6 +349,20 @@ async fn submit_transaction(
         .admit(transaction, chain, &RustCryptoProvider)
         .map_err(ApiError::bad_request)?;
     Ok(Json(serde_json::json!({ "txid": txid.to_string() })))
+}
+
+async fn submit_checkpoint(
+    State(state): State<SharedNode>,
+    Json(certificate): Json<CheckpointCertificate>,
+) -> Result<Json<CheckpointResult>, ApiError> {
+    let mut node = state.write().await;
+    let NodeRuntime {
+        chain, finality, ..
+    } = &mut *node;
+    let result = finality
+        .process_certificate(&certificate, chain)
+        .map_err(ApiError::bad_request)?;
+    Ok(Json(result))
 }
 
 async fn block_template(

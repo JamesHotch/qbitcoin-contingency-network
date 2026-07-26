@@ -339,7 +339,7 @@ pub struct EquivocationEvidence {
     pub conflicting_block_hash: Hash32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CheckpointResult {
     Finalized { height: u64, hash: Hash32 },
     Observed { height: u64, hash: Hash32 },

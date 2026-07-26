@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: qbitcoin-nodes
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - node1:58332
+          - node2:58332
+          - node3:58332
+

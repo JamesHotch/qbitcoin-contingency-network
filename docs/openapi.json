@@ -33,6 +33,13 @@
         "responses": { "200": { "description": "Unmined block candidate" } }
       }
     },
+    "/v1/checkpoints": {
+      "post": {
+        "summary": "Submit a multi-signer checkpoint certificate",
+        "description": "Certificates can protect only already-valid active-chain history while authority is enabled.",
+        "responses": { "200": { "description": "Finality or observation result" } }
+      }
+    },
     "/v1/blocks": {
       "post": {
         "summary": "Submit a mined block",
@@ -41,4 +48,3 @@
     }
   }
 }
-

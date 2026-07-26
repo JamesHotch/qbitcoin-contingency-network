@@ -16,8 +16,8 @@
 .env
 .env.*
 !.env.example
+!.env.devnet.example
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
-
