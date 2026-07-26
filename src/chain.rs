@@ -32,6 +32,8 @@ pub enum ChainError {
     FinalizedCheckpointConflict,
     #[error("checkpoint does not identify valid active-chain history")]
     InvalidCheckpointGuard,
+    #[error("checkpoint authority has been permanently retired")]
+    CheckpointAuthorityRetired,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +64,7 @@ pub struct ChainState {
     blocks: BTreeMap<Hash32, IndexedBlock>,
     active_tip: Hash32,
     checkpoint_guard: Option<CheckpointGuard>,
+    checkpoint_authority_retired: bool,
 }
 
 impl ChainState {
@@ -95,6 +98,7 @@ impl ChainState {
             blocks,
             active_tip: hash,
             checkpoint_guard: None,
+            checkpoint_authority_retired: false,
         })
     }
 
@@ -138,11 +142,19 @@ impl ChainState {
         self.checkpoint_guard
     }
 
+    #[must_use]
+    pub const fn checkpoint_authority_retired(&self) -> bool {
+        self.checkpoint_authority_retired
+    }
+
     pub fn install_checkpoint_guard(
         &mut self,
         height: u64,
         hash: Hash32,
     ) -> Result<(), ChainError> {
+        if self.checkpoint_authority_retired {
+            return Err(ChainError::CheckpointAuthorityRetired);
+        }
         if self.block_at_height(height) != Some(hash)
             || self
                 .checkpoint_guard
@@ -156,6 +168,11 @@ impl ChainState {
 
     pub fn clear_checkpoint_guard(&mut self) {
         self.checkpoint_guard = None;
+    }
+
+    pub fn retire_checkpoint_authority(&mut self) {
+        self.checkpoint_guard = None;
+        self.checkpoint_authority_retired = true;
     }
 
     #[must_use]

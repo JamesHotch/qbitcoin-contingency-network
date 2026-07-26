@@ -164,6 +164,7 @@ pub struct FinalityParams {
     pub reduced: CheckpointPolicy,
     pub bootstrap_to_reduced: Option<TransitionThreshold>,
     pub reduced_to_observer: Option<TransitionThreshold>,
+    pub observer_to_retired: Option<TransitionThreshold>,
     pub mainnet_thresholds_reviewed: bool,
 }
 
@@ -182,6 +183,7 @@ impl FinalityParams {
                 },
                 bootstrap_to_reduced: None,
                 reduced_to_observer: None,
+                observer_to_retired: None,
                 mainnet_thresholds_reviewed: false,
             },
             Network::Testnet => Self {
@@ -213,6 +215,16 @@ impl FinalityParams {
                     maximum_average_block_interval_secs: 150,
                     activation_delay_blocks: 1_008,
                 }),
+                observer_to_retired: Some(TransitionThreshold {
+                    minimum_network_age_secs: 90 * 24 * 60 * 60,
+                    minimum_height: 15_000,
+                    minimum_cumulative_chainwork: U256::from(150_000_u64),
+                    minimum_rolling_work: U256::from(4_u64),
+                    sustained_adjustment_periods: 9,
+                    minimum_average_block_interval_secs: 20,
+                    maximum_average_block_interval_secs: 150,
+                    activation_delay_blocks: 2_016,
+                }),
                 mainnet_thresholds_reviewed: false,
             },
             Network::Regtest => Self {
@@ -240,6 +252,16 @@ impl FinalityParams {
                     minimum_cumulative_chainwork: U256::one(),
                     minimum_rolling_work: U256::one(),
                     sustained_adjustment_periods: 3,
+                    minimum_average_block_interval_secs: 1,
+                    maximum_average_block_interval_secs: 10,
+                    activation_delay_blocks: 3,
+                }),
+                observer_to_retired: Some(TransitionThreshold {
+                    minimum_network_age_secs: 30,
+                    minimum_height: 30,
+                    minimum_cumulative_chainwork: U256::one(),
+                    minimum_rolling_work: U256::one(),
+                    sustained_adjustment_periods: 4,
                     minimum_average_block_interval_secs: 1,
                     maximum_average_block_interval_secs: 10,
                     activation_delay_blocks: 3,
@@ -380,8 +402,8 @@ pub enum FinalityError {
     Equivocation,
     #[error("mainnet transition thresholds have not received independent review")]
     MainnetThresholdsUnset,
-    #[error("observer-to-retired transition is not enabled in this protocol revision")]
-    RetirementNotYetEnabled,
+    #[error("security snapshot does not match the active chain")]
+    SnapshotMismatch,
 }
 
 pub struct FinalityState {
@@ -505,6 +527,9 @@ impl FinalityState {
         snapshot: &SecuritySnapshot,
         chain: &mut ChainState,
     ) -> Result<Option<StageTransition>, FinalityError> {
+        if snapshot.height != chain.height() || snapshot.cumulative_chainwork != chain.chainwork() {
+            return Err(FinalityError::SnapshotMismatch);
+        }
         if let Some(pending) = &self.pending_transition {
             if snapshot.height >= pending.activates_at_height {
                 let transition = StageTransition {
@@ -516,6 +541,8 @@ impl FinalityState {
                 self.pending_transition = None;
                 if self.stage == ConsensusStage::ObserverOnly {
                     chain.clear_checkpoint_guard();
+                } else if self.stage == ConsensusStage::Retired {
+                    chain.retire_checkpoint_authority();
                 }
                 return Ok(Some(transition));
             }
@@ -531,7 +558,10 @@ impl FinalityState {
                 ConsensusStage::ObserverOnly,
                 self.params.reduced_to_observer.as_ref(),
             ),
-            ConsensusStage::ObserverOnly => return Err(FinalityError::RetirementNotYetEnabled),
+            ConsensusStage::ObserverOnly => (
+                ConsensusStage::Retired,
+                self.params.observer_to_retired.as_ref(),
+            ),
             ConsensusStage::Retired => return Ok(None),
         };
         let threshold = threshold.ok_or(FinalityError::MainnetThresholdsUnset)?;
@@ -696,6 +726,24 @@ mod tests {
         }
     }
 
+    fn security_snapshot(
+        chain: &ChainState,
+        network_age_secs: u64,
+        periods: u32,
+        rolling_work: U256,
+    ) -> SecuritySnapshot {
+        SecuritySnapshot {
+            network_age_secs,
+            height: chain.height(),
+            cumulative_chainwork: chain.chainwork(),
+            rolling_work,
+            complete_adjustment_periods_above_threshold: periods,
+            average_block_interval_secs: 2,
+            unresolved_conflicting_checkpoints: false,
+            prohibited_deep_reorganisation: false,
+        }
+    }
+
     #[test]
     fn six_signatures_fail_and_seven_finalize_deep_valid_history() {
         let params = ChainParams::for_network(Network::Regtest);
@@ -790,17 +838,9 @@ mod tests {
     fn stage_transition_uses_all_conditions_and_a_locked_delay() {
         let params = ChainParams::for_network(Network::Regtest);
         let mut chain = ChainState::new(params.clone()).unwrap();
+        mine_blocks(&mut chain, 10);
         let mut finality = FinalityState::new(params.finality.clone(), params.committee.clone());
-        let qualifying = SecuritySnapshot {
-            network_age_secs: 10,
-            height: 10,
-            cumulative_chainwork: U256::from(100),
-            rolling_work: U256::from(2),
-            complete_adjustment_periods_above_threshold: 2,
-            average_block_interval_secs: 2,
-            unresolved_conflicting_checkpoints: false,
-            prohibited_deep_reorganisation: false,
-        };
+        let qualifying = security_snapshot(&chain, 10, 2, U256::from(2));
         assert_eq!(
             finality
                 .evaluate_transitions(&qualifying, &mut chain)
@@ -811,14 +851,122 @@ mod tests {
             finality.pending_transition().unwrap().activates_at_height,
             13
         );
-        let mut after_delay = qualifying;
-        after_delay.height = 13;
-        after_delay.rolling_work = U256::zero();
+        mine_blocks(&mut chain, 3);
+        let after_delay = security_snapshot(&chain, 13, 0, U256::zero());
         let transition = finality
             .evaluate_transitions(&after_delay, &mut chain)
             .unwrap()
             .unwrap();
         assert_eq!(transition.to, ConsensusStage::ReducedFinality);
+    }
+
+    #[test]
+    fn observer_and_retirement_remove_authority_irreversibly() {
+        let params = ChainParams::for_network(Network::Regtest);
+        let mut chain = ChainState::new(params.clone()).unwrap();
+        let mut finality = FinalityState::new(params.finality.clone(), params.committee.clone());
+
+        mine_blocks(&mut chain, 10);
+        finality
+            .evaluate_transitions(&security_snapshot(&chain, 10, 2, U256::one()), &mut chain)
+            .unwrap();
+        mine_blocks(&mut chain, 3);
+        finality
+            .evaluate_transitions(&security_snapshot(&chain, 13, 0, U256::zero()), &mut chain)
+            .unwrap();
+        assert_eq!(finality.stage(), ConsensusStage::ReducedFinality);
+
+        mine_blocks(&mut chain, 7);
+        finality
+            .evaluate_transitions(&security_snapshot(&chain, 20, 3, U256::one()), &mut chain)
+            .unwrap();
+        mine_blocks(&mut chain, 3);
+        finality
+            .evaluate_transitions(&security_snapshot(&chain, 23, 0, U256::zero()), &mut chain)
+            .unwrap();
+        assert_eq!(finality.stage(), ConsensusStage::ObserverOnly);
+        assert_eq!(chain.checkpoint_guard(), None);
+
+        let observation = certificate(proposal(&chain, &finality, 10), 7);
+        assert!(matches!(
+            finality.process_certificate(&observation, &mut chain),
+            Ok(CheckpointResult::Observed { height: 10, .. })
+        ));
+        assert_eq!(chain.checkpoint_guard(), None);
+
+        mine_blocks(&mut chain, 7);
+        finality
+            .evaluate_transitions(&security_snapshot(&chain, 30, 4, U256::one()), &mut chain)
+            .unwrap();
+        mine_blocks(&mut chain, 3);
+        finality
+            .evaluate_transitions(&security_snapshot(&chain, 33, 0, U256::zero()), &mut chain)
+            .unwrap();
+        assert_eq!(finality.stage(), ConsensusStage::Retired);
+        assert!(chain.checkpoint_authority_retired());
+        assert!(matches!(
+            finality.process_certificate(&observation, &mut chain),
+            Ok(CheckpointResult::IgnoredRetired)
+        ));
+        assert!(matches!(
+            chain.install_checkpoint_guard(1, chain.block_at_height(1).unwrap()),
+            Err(ChainError::CheckpointAuthorityRetired)
+        ));
+    }
+
+    #[test]
+    fn conflicting_signatures_are_recorded_as_equivocation() {
+        let params = ChainParams::for_network(Network::Regtest);
+        let mut chain = ChainState::new(params.clone()).unwrap();
+        mine_blocks(&mut chain, 5);
+        let mut finality = FinalityState::new(params.finality.clone(), params.committee.clone());
+        let first = proposal(&chain, &finality, 1);
+        assert!(matches!(
+            finality.process_certificate(&certificate(first.clone(), 6), &mut chain),
+            Err(FinalityError::InsufficientQuorum)
+        ));
+
+        let mut conflict = first;
+        conflict.block_hash = Hash32([42; 32]);
+        assert!(matches!(
+            finality.process_certificate(&certificate(conflict, 7), &mut chain),
+            Err(FinalityError::Equivocation)
+        ));
+        assert_eq!(finality.equivocations().len(), 1);
+    }
+
+    #[test]
+    fn proof_of_work_selects_forks_after_retirement() {
+        let params = ChainParams::for_network(Network::Regtest);
+        let mut chain = ChainState::new(params.clone()).unwrap();
+        mine_blocks(&mut chain, 5);
+        let checkpoint_hash = chain.block_at_height(1).unwrap();
+        chain.install_checkpoint_guard(1, checkpoint_hash).unwrap();
+        chain.retire_checkpoint_authority();
+
+        let genesis = chain.block_at_height(0).unwrap();
+        let policy = OutputPolicy::Hybrid(HybridKeyPair::generate(None).public_keys());
+        let mut parent = genesis;
+        for index in 0_u64..6 {
+            let mut block = chain
+                .block_template_on(
+                    parent,
+                    policy.clone(),
+                    Vec::new(),
+                    params.genesis_timestamp + 100 + index,
+                    &index.to_le_bytes(),
+                    &RustCryptoProvider,
+                )
+                .unwrap();
+            block.mine(&Sha256dPowV1, u32::MAX).unwrap();
+            let hash = block.hash(&Sha256dPowV1);
+            let outcome = chain.submit_block(block, &RustCryptoProvider).unwrap();
+            parent = hash;
+            if index == 5 {
+                assert!(outcome.became_active);
+                assert_eq!(chain.tip_hash(), hash);
+            }
+        }
     }
 
     #[test]
