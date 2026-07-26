@@ -16,7 +16,7 @@ default = []
 anyhow = "1.0"
 argon2 = "0.5.3"
 axum = "0.8.9"
-base64 = "0.22.1"
+base64 = "0.23.0"
 bech32 = "0.12.0"
 chacha20poly1305 = { version = "0.11.0", features = ["zeroize"] }
 clap = { version = "4.5.50", features = ["derive", "env"] }
