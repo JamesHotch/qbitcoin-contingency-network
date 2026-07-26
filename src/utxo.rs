@@ -148,6 +148,48 @@ impl UtxoSet {
                         age,
                     )?;
                 }
+                (
+                    OutputPolicy::HybridCommitment { commitment },
+                    SpendWitness::CommittedHybrid {
+                        public_keys,
+                        signature,
+                    },
+                ) => {
+                    if crate::address::policy_commitment(public_keys) != *commitment {
+                        return Err(ValidationError::WrongWitness);
+                    }
+                    verify_hybrid(
+                        provider,
+                        &params.chain_id,
+                        DomainTag::TransactionSignature,
+                        &message,
+                        public_keys,
+                        signature,
+                    )?;
+                }
+                (
+                    OutputPolicy::HybridCommitment { commitment },
+                    SpendWitness::CommittedRecovery {
+                        public_keys,
+                        signature,
+                    },
+                ) => {
+                    if crate::address::policy_commitment(public_keys) != *commitment {
+                        return Err(ValidationError::WrongWitness);
+                    }
+                    let recovery = public_keys
+                        .recovery
+                        .as_ref()
+                        .ok_or(ValidationError::WrongWitness)?;
+                    verify_recovery(
+                        provider,
+                        &params.chain_id,
+                        &message,
+                        recovery,
+                        signature,
+                        age,
+                    )?;
+                }
                 (OutputPolicy::Burn { .. }, _) => return Err(ValidationError::BurnOutput),
                 _ => return Err(ValidationError::WrongWitness),
             }

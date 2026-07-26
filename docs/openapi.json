@@ -1,0 +1,44 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "QBitCoin experimental node API",
+    "version": "0.1.0",
+    "description": "Unaudited testnet-only research API. Do not use for real financial value."
+  },
+  "paths": {
+    "/v1/status": {
+      "get": {
+        "summary": "Network and finality status",
+        "responses": { "200": { "description": "Current node status" } }
+      }
+    },
+    "/v1/blocks/{height}": {
+      "get": {
+        "summary": "Active-chain block by height",
+        "parameters": [
+          { "name": "height", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Canonical block" } }
+      }
+    },
+    "/v1/transactions": {
+      "post": {
+        "summary": "Submit a signed transaction to the mempool",
+        "responses": { "200": { "description": "Transaction accepted" } }
+      }
+    },
+    "/v1/mining/template": {
+      "post": {
+        "summary": "Create a standard block template",
+        "responses": { "200": { "description": "Unmined block candidate" } }
+      }
+    },
+    "/v1/blocks": {
+      "post": {
+        "summary": "Submit a mined block",
+        "responses": { "200": { "description": "Block validation result" } }
+      }
+    }
+  }
+}
+

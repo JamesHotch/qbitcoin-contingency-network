@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>QBitCoin Testnet Observatory</title>
+  <style>
+    :root { --ink:#17221c; --paper:#f3efdf; --signal:#e4512e; --safe:#1f7250; --line:#b9b09a; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:radial-gradient(circle at 85% 8%,#d6e8d5 0,transparent 34%),linear-gradient(135deg,#f8f3e4,#e9e2cf); font-family:Georgia,"Times New Roman",serif; min-height:100vh; }
+    header,main { width:min(1100px,92vw); margin:auto; }
+    header { padding:4.5rem 0 2rem; border-bottom:2px solid var(--ink); }
+    .kicker { font:700 .72rem/1.2 ui-monospace,monospace; letter-spacing:.18em; color:var(--signal); }
+    h1 { margin:.4rem 0; font-size:clamp(2.8rem,7vw,6.6rem); line-height:.88; font-weight:500; }
+    .warning { max-width:720px; font:700 .9rem/1.5 ui-monospace,monospace; }
+    main { padding:2rem 0 5rem; }
+    .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:1rem; }
+    article { grid-column:span 4; border:1px solid var(--line); background:rgba(255,255,255,.42); padding:1.2rem; min-height:150px; }
+    article.wide { grid-column:span 8; }
+    label { display:block; font:700 .68rem/1 ui-monospace,monospace; letter-spacing:.14em; text-transform:uppercase; color:#59645c; }
+    output { display:block; margin-top:.75rem; font-size:clamp(1.5rem,3vw,2.8rem); overflow-wrap:anywhere; }
+    #stage { color:var(--safe); }
+    .hash { font:600 .76rem/1.6 ui-monospace,monospace; }
+    footer { margin-top:2rem; border-top:1px solid var(--line); padding-top:1rem; font:italic .9rem/1.5 Georgia,serif; }
+    @media(max-width:720px) { article,article.wide { grid-column:1/-1; } header { padding-top:2.5rem; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="kicker">EXPERIMENTAL NETWORK / LIVE NODE VIEW</div>
+    <h1>QBTC<br>Observatory</h1>
+    <p class="warning">Unaudited research software. Not production-ready, investment-ready, or quantum-proof. Do not use it to hold real financial value.</p>
+  </header>
+  <main>
+    <section class="grid">
+      <article><label>Chain height</label><output id="height">-</output></article>
+      <article><label>Consensus stage</label><output id="stage">-</output></article>
+      <article><label>Mempool</label><output id="mempool">-</output></article>
+      <article class="wide"><label>Active tip</label><output class="hash" id="tip">-</output></article>
+      <article><label>Reorg depth</label><output id="reorg">-</output></article>
+      <article><label>Latest checkpoint</label><output id="checkpoint">-</output></article>
+      <article><label>Signer availability</label><output id="signers">-</output></article>
+      <article><label>Peer diversity</label><output id="peers">-</output></article>
+    </section>
+    <footer id="projection">Projected transition dates are estimates, not guarantees.</footer>
+  </main>
+  <script>
+    const ids = Object.fromEntries(["height","stage","mempool","tip","reorg","checkpoint","signers","peers","projection"].map(id => [id, document.getElementById(id)]));
+    async function refresh() {
+      try {
+        const s = await fetch("/v1/status").then(r => r.json());
+        ids.height.textContent = s.height;
+        ids.stage.textContent = s.consensus_stage.replaceAll("_", " ");
+        ids.mempool.textContent = s.mempool_transactions;
+        ids.tip.textContent = s.tip_hash;
+        ids.reorg.textContent = s.recent_reorg_depth;
+        ids.checkpoint.textContent = s.latest_checkpoint_height ?? "none";
+        ids.signers.textContent = `${s.signer_availability}/${s.configured_signers}`;
+        ids.peers.textContent = `${s.peer_diversity_groups} groups`;
+        ids.projection.textContent = s.projection_warning;
+      } catch (_) { ids.stage.textContent = "node unavailable"; }
+    }
+    refresh(); setInterval(refresh, 5000);
+  </script>
+</body>
+</html>
+

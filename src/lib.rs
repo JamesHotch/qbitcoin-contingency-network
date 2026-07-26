@@ -4,6 +4,7 @@
 //!
 //! This crate is testnet-only, unaudited, and unsuitable for real financial value.
 
+pub mod address;
 pub mod amount;
 pub mod block;
 pub mod chain;
@@ -11,10 +12,15 @@ pub mod crypto;
 pub mod encoding;
 pub mod finality;
 pub mod hash;
+pub mod mempool;
+pub mod node;
+pub mod p2p;
 pub mod params;
 pub mod pow;
+pub mod storage;
 pub mod transaction;
 pub mod utxo;
+pub mod wallet;
 
 /// The software and consensus format version.
 pub const SOFTWARE_VERSION: &str = env!("CARGO_PKG_VERSION");

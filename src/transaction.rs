@@ -66,12 +66,21 @@ pub enum SpendWitness {
     },
     Hybrid(HybridSignature),
     Recovery(RecoverySignature),
+    CommittedHybrid {
+        public_keys: HybridPublicKeys,
+        signature: HybridSignature,
+    },
+    CommittedRecovery {
+        public_keys: HybridPublicKeys,
+        signature: RecoverySignature,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OutputPolicy {
     Hybrid(HybridPublicKeys),
+    HybridCommitment { commitment: Hash32 },
     Burn { commitment: Hash32 },
 }
 
@@ -282,6 +291,8 @@ impl Transaction {
             .map(|input| match input.witness {
                 SpendWitness::Hybrid(_) => 51,
                 SpendWitness::Recovery(_) => 200,
+                SpendWitness::CommittedHybrid { .. } => 51,
+                SpendWitness::CommittedRecovery { .. } => 200,
                 SpendWitness::Empty | SpendWitness::Coinbase { .. } => 0,
             })
             .sum()
@@ -315,6 +326,25 @@ fn encode_witness(witness: &SpendWitness, output: &mut Vec<u8>) {
             output.extend_from_slice(&(signature.policy_version as u16).to_le_bytes());
             put_bytes(&signature.slh_dsa, output);
         }
+        SpendWitness::CommittedHybrid {
+            public_keys,
+            signature,
+        } => {
+            output.push(4);
+            encode_public_keys(public_keys, output);
+            output.extend_from_slice(&(signature.policy_version as u16).to_le_bytes());
+            encode_optional_bytes(signature.schnorr.as_deref(), output);
+            encode_optional_bytes(signature.ml_dsa.as_deref(), output);
+        }
+        SpendWitness::CommittedRecovery {
+            public_keys,
+            signature,
+        } => {
+            output.push(5);
+            encode_public_keys(public_keys, output);
+            output.extend_from_slice(&(signature.policy_version as u16).to_le_bytes());
+            put_bytes(&signature.slh_dsa, output);
+        }
     }
 }
 
@@ -333,6 +363,21 @@ fn decode_witness(decoder: &mut Decoder<'_>) -> Result<SpendWitness, EncodingErr
             policy_version: decode_policy_version(decoder.read_u16()?)?,
             slh_dsa: decoder.read_bytes(MAX_SIGNATURE_BYTES)?,
         })),
+        4 => Ok(SpendWitness::CommittedHybrid {
+            public_keys: decode_public_keys(decoder)?,
+            signature: HybridSignature {
+                policy_version: decode_policy_version(decoder.read_u16()?)?,
+                schnorr: decode_optional_bytes(decoder, MAX_SIGNATURE_BYTES)?,
+                ml_dsa: decode_optional_bytes(decoder, MAX_SIGNATURE_BYTES)?,
+            },
+        }),
+        5 => Ok(SpendWitness::CommittedRecovery {
+            public_keys: decode_public_keys(decoder)?,
+            signature: RecoverySignature {
+                policy_version: decode_policy_version(decoder.read_u16()?)?,
+                slh_dsa: decoder.read_bytes(MAX_SIGNATURE_BYTES)?,
+            },
+        }),
         _ => Err(EncodingError::UnknownTag),
     }
 }
@@ -363,16 +408,11 @@ pub(crate) fn encode_output(transaction_output: &TxOutput, output: &mut Vec<u8>)
     match &transaction_output.policy {
         OutputPolicy::Hybrid(keys) => {
             output.push(1);
-            output.extend_from_slice(&(keys.policy_version as u16).to_le_bytes());
-            put_bytes(&keys.schnorr, output);
-            put_bytes(&keys.ml_dsa, output);
-            match &keys.recovery {
-                Some(recovery) => {
-                    output.push(1);
-                    encode_recovery_public_key(recovery, output);
-                }
-                None => output.push(0),
-            }
+            encode_public_keys(keys, output);
+        }
+        OutputPolicy::HybridCommitment { commitment } => {
+            output.push(3);
+            output.extend_from_slice(&commitment.0);
         }
         OutputPolicy::Burn { commitment } => {
             output.push(2);
@@ -384,28 +424,46 @@ pub(crate) fn encode_output(transaction_output: &TxOutput, output: &mut Vec<u8>)
 fn decode_output(decoder: &mut Decoder<'_>) -> Result<TxOutput, EncodingError> {
     let value = Amount::from_atoms(decoder.read_u64()?).map_err(|_| EncodingError::InvalidValue)?;
     let policy = match decoder.read_u8()? {
-        1 => {
-            let policy_version = decode_policy_version(decoder.read_u16()?)?;
-            let schnorr = decoder.read_bytes(MAX_PUBLIC_KEY_BYTES)?;
-            let ml_dsa = decoder.read_bytes(MAX_PUBLIC_KEY_BYTES)?;
-            let recovery = match decoder.read_u8()? {
-                0 => None,
-                1 => Some(decode_recovery_public_key(decoder)?),
-                _ => return Err(EncodingError::UnknownTag),
-            };
-            OutputPolicy::Hybrid(HybridPublicKeys {
-                policy_version,
-                schnorr,
-                ml_dsa,
-                recovery,
-            })
-        }
+        1 => OutputPolicy::Hybrid(decode_public_keys(decoder)?),
         2 => OutputPolicy::Burn {
+            commitment: Hash32(decoder.read_array()?),
+        },
+        3 => OutputPolicy::HybridCommitment {
             commitment: Hash32(decoder.read_array()?),
         },
         _ => return Err(EncodingError::UnknownTag),
     };
     Ok(TxOutput { value, policy })
+}
+
+fn encode_public_keys(keys: &HybridPublicKeys, output: &mut Vec<u8>) {
+    output.extend_from_slice(&(keys.policy_version as u16).to_le_bytes());
+    put_bytes(&keys.schnorr, output);
+    put_bytes(&keys.ml_dsa, output);
+    match &keys.recovery {
+        Some(recovery) => {
+            output.push(1);
+            encode_recovery_public_key(recovery, output);
+        }
+        None => output.push(0),
+    }
+}
+
+fn decode_public_keys(decoder: &mut Decoder<'_>) -> Result<HybridPublicKeys, EncodingError> {
+    let policy_version = decode_policy_version(decoder.read_u16()?)?;
+    let schnorr = decoder.read_bytes(MAX_PUBLIC_KEY_BYTES)?;
+    let ml_dsa = decoder.read_bytes(MAX_PUBLIC_KEY_BYTES)?;
+    let recovery = match decoder.read_u8()? {
+        0 => None,
+        1 => Some(decode_recovery_public_key(decoder)?),
+        _ => return Err(EncodingError::UnknownTag),
+    };
+    Ok(HybridPublicKeys {
+        policy_version,
+        schnorr,
+        ml_dsa,
+        recovery,
+    })
 }
 
 fn encode_recovery_public_key(recovery: &RecoveryPublicKey, output: &mut Vec<u8>) {

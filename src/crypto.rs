@@ -17,6 +17,7 @@ use slh_dsa::{
     VerifyingKey as SlhDsaVerifyingKey,
 };
 use thiserror::Error;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub const SCHNORR_PUBLIC_KEY_BYTES: usize = 32;
 pub const SCHNORR_SIGNATURE_BYTES: usize = 64;
@@ -220,6 +221,14 @@ pub struct HybridKeyPair {
     recovery: Option<RecoveryKeyPair>,
 }
 
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
+pub struct HybridSecretMaterial {
+    schnorr: [u8; 32],
+    ml_dsa: [u8; 32],
+    slh_dsa: Option<Vec<u8>>,
+    recovery_relative_timelock: Option<u32>,
+}
+
 struct RecoveryKeyPair {
     slh_dsa: SlhDsaSigningKey<Shake128s>,
     relative_timelock: u32,
@@ -240,6 +249,47 @@ impl HybridKeyPair {
             schnorr: SchnorrSigningKey::generate(),
             ml_dsa: MlDsaSigningKey::<MlDsa65>::generate(),
             recovery,
+        }
+    }
+
+    pub fn from_secret_material(material: &HybridSecretMaterial) -> Result<Self, CryptoError> {
+        let schnorr = SchnorrSigningKey::from_bytes(&FieldBytes::from(material.schnorr))
+            .map_err(|_| CryptoError::InvalidPublicKey)?;
+        let ml_dsa = MlDsaSigningKey::<MlDsa65>::from_seed(&material.ml_dsa.into());
+        let recovery = match (
+            material.slh_dsa.as_deref(),
+            material.recovery_relative_timelock,
+        ) {
+            (Some(bytes), Some(relative_timelock)) => Some(RecoveryKeyPair {
+                slh_dsa: SlhDsaSigningKey::<Shake128s>::try_from(bytes)
+                    .map_err(|_| CryptoError::InvalidPublicKey)?,
+                relative_timelock,
+            }),
+            (None, None) => None,
+            _ => return Err(CryptoError::InvalidPublicKey),
+        };
+        Ok(Self {
+            schnorr,
+            ml_dsa,
+            recovery,
+        })
+    }
+
+    /// Explicit export used only immediately before encrypted wallet storage.
+    /// The returned value zeroises itself on drop.
+    #[must_use]
+    pub fn export_secret_material(&self) -> HybridSecretMaterial {
+        HybridSecretMaterial {
+            schnorr: self.schnorr.to_bytes().into(),
+            ml_dsa: self.ml_dsa.to_seed().into(),
+            slh_dsa: self
+                .recovery
+                .as_ref()
+                .map(|recovery| recovery.slh_dsa.to_vec()),
+            recovery_relative_timelock: self
+                .recovery
+                .as_ref()
+                .map(|recovery| recovery.relative_timelock),
         }
     }
 

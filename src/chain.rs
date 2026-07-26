@@ -180,6 +180,44 @@ impl ChainState {
         self.blocks.get(&hash).map(|block| block.chainwork)
     }
 
+    #[must_use]
+    pub fn block(&self, hash: Hash32) -> Option<&Block> {
+        self.blocks.get(&hash).map(|indexed| &indexed.block)
+    }
+
+    #[must_use]
+    pub fn active_blocks(&self) -> Vec<Block> {
+        let mut blocks = Vec::with_capacity(self.height() as usize + 1);
+        for height in 0..=self.height() {
+            let hash = self
+                .block_at_height(height)
+                .expect("active chain has every preceding height");
+            blocks.push(self.blocks[&hash].block.clone());
+        }
+        blocks
+    }
+
+    pub fn from_active_blocks(
+        params: ChainParams,
+        blocks: &[Block],
+        signature_provider: &dyn SignatureProvider,
+    ) -> Result<Self, ChainError> {
+        let mut chain = Self::new(params)?;
+        let Some(first) = blocks.first() else {
+            return Ok(chain);
+        };
+        if first.hash(&Sha256dPowV1) != chain.tip_hash() {
+            return Err(ChainError::UnknownParent);
+        }
+        for block in blocks.iter().skip(1) {
+            let outcome = chain.submit_block(block.clone(), signature_provider)?;
+            if !outcome.became_active {
+                return Err(ChainError::UnknownParent);
+            }
+        }
+        Ok(chain)
+    }
+
     pub fn expected_bits_after(&self, parent_hash: Hash32) -> Result<u32, ChainError> {
         let parent = self
             .blocks
