@@ -47,6 +47,7 @@ lto = "thin"
 codegen-units = 1
 overflow-checks = true
 panic = "abort"
+strip = "symbols"
 
 [profile.dev]
 overflow-checks = true

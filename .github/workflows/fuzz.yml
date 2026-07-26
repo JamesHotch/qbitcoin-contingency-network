@@ -1,0 +1,68 @@
+name: Fuzz and Sanitizers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "fuzz/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/fuzz.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "fuzz/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/fuzz.yml"
+  schedule:
+    - cron: "43 3 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  transaction-fuzz:
+    name: Transaction decoder fuzz smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install pinned nightly and cargo-fuzz
+        run: |
+          rustup toolchain install nightly-2026-07-20 --profile minimal
+          cargo +nightly-2026-07-20 install cargo-fuzz --version 0.13.2 --locked
+
+      - name: Run bounded decoder fuzzing
+        run: cargo +nightly-2026-07-20 fuzz run transaction_decode -- -max_total_time=90 -timeout=10
+
+  address-sanitizer:
+    name: AddressSanitizer library tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install pinned nightly
+        run: rustup toolchain install nightly-2026-07-20 --profile minimal
+
+      - name: Run AddressSanitizer
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          RUSTFLAGS: -Zsanitizer=address
+        run: cargo +nightly-2026-07-20 test --locked --lib --target x86_64-unknown-linux-gnu

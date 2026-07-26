@@ -1,0 +1,54 @@
+name: Bug report
+description: Report a reproducible non-sensitive defect in testnet research code.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not disclose vulnerabilities here. Use SECURITY.md and GitHub Private Vulnerability Reporting.
+        Never attach wallets, keys, passwords, tokens, or real financial data.
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: Exact Git commit hash.
+    validations:
+      required: true
+  - type: dropdown
+    id: network
+    attributes:
+      label: Network
+      options:
+        - regtest
+        - testnet
+        - mainnet refusal path
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal commands and sanitized inputs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I removed all secrets and understand that QBitCoin is unaudited testnet software.
+          required: true

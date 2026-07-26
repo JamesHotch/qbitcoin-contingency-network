@@ -13,6 +13,12 @@ repeatability but do not yet prove bit-for-bit reproducibility.
 ./scripts/reproducible-build.sh
 ```
 
+On Windows PowerShell:
+
+```powershell
+.\scripts\reproducible-build.ps1
+```
+
 The script builds the locked release twice in clean target directories and
 compares SHA-256 hashes for every shipped executable. On supported Unix hosts,
 it also records compiler, Cargo, source commit, and binary hashes.

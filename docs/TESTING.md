@@ -67,12 +67,27 @@ warning rather than creating a real network partition.
 With nightly Rust and `cargo-fuzz`:
 
 ```bash
-cargo install cargo-fuzz --locked
-cargo +nightly fuzz run transaction_decode -- -max_total_time=60
+cargo +nightly-2026-07-20 install cargo-fuzz --version 0.13.2 --locked
+cargo +nightly-2026-07-20 fuzz run transaction_decode -- -max_total_time=60
 ```
 
 Long-duration corpora, differential parsers, block/P2P/wallet targets, and
 coverage reporting remain future work.
+
+## Supply Chain and Secrets
+
+Install the pinned local tools, then run:
+
+```bash
+cargo install cargo-audit --version 0.22.2 --locked
+cargo install cargo-deny --version 0.20.2 --locked
+cargo audit --deny warnings
+cargo deny --locked check
+gitleaks git --redact --no-banner --log-opts="--all"
+```
+
+CI downloads Gitleaks 8.30.1 only after checking its published SHA-256. External
+GitHub Actions are pinned to immutable commits.
 
 ## Interpretation
 

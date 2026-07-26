@@ -1,0 +1,7 @@
+/src/ @JamesHotch
+/tests/ @JamesHotch
+/fuzz/ @JamesHotch
+/Cargo.toml @JamesHotch
+/Cargo.lock @JamesHotch
+/mainnet-readiness.toml @JamesHotch
+/.github/workflows/ @JamesHotch
