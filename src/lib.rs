@@ -5,6 +5,7 @@
 //! This crate is testnet-only, unaudited, and unsuitable for real financial value.
 
 pub mod amount;
+pub mod crypto;
 pub mod hash;
 pub mod params;
 
