@@ -5,9 +5,15 @@
 //! This crate is testnet-only, unaudited, and unsuitable for real financial value.
 
 pub mod amount;
+pub mod block;
+pub mod chain;
 pub mod crypto;
+pub mod encoding;
 pub mod hash;
 pub mod params;
+pub mod pow;
+pub mod transaction;
+pub mod utxo;
 
 /// The software and consensus format version.
 pub const SOFTWARE_VERSION: &str = env!("CARGO_PKG_VERSION");

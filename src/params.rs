@@ -91,6 +91,7 @@ pub struct ChainParams {
     pub bech32m_hrp: String,
     pub target_block_interval_secs: u64,
     pub difficulty_adjustment_interval: u64,
+    pub initial_pow_bits: u32,
     pub coinbase_maturity: u64,
     pub max_block_weight: u64,
     pub max_transaction_weight: u64,
@@ -105,36 +106,47 @@ pub struct ChainParams {
 impl ChainParams {
     #[must_use]
     pub fn for_network(network: Network) -> Self {
-        let (magic, p2p_port, rpc_port, hrp, block_secs, adjustment_interval, genesis_timestamp) =
-            match network {
-                Network::Main => (
-                    [0xd1, 0x6f, 0x31, 0xa8],
-                    38_333,
-                    38_332,
-                    "qbtc",
-                    600,
-                    2_016,
-                    1_800_000_000,
-                ),
-                Network::Testnet => (
-                    [0x6c, 0xf2, 0x89, 0x51],
-                    48_333,
-                    48_332,
-                    "tqbtc",
-                    60,
-                    144,
-                    1_800_000_100,
-                ),
-                Network::Regtest => (
-                    [0xfa, 0x71, 0xb4, 0xc2],
-                    58_333,
-                    58_332,
-                    "rqbtc",
-                    1,
-                    20,
-                    1_800_000_200,
-                ),
-            };
+        let (
+            magic,
+            p2p_port,
+            rpc_port,
+            hrp,
+            block_secs,
+            adjustment_interval,
+            genesis_timestamp,
+            initial_pow_bits,
+        ) = match network {
+            Network::Main => (
+                [0xd1, 0x6f, 0x31, 0xa8],
+                38_333,
+                38_332,
+                "qbtc",
+                600,
+                2_016,
+                1_800_000_000,
+                0x1f00_ffff,
+            ),
+            Network::Testnet => (
+                [0x6c, 0xf2, 0x89, 0x51],
+                48_333,
+                48_332,
+                "tqbtc",
+                60,
+                144,
+                1_800_000_100,
+                0x2000_ffff,
+            ),
+            Network::Regtest => (
+                [0xfa, 0x71, 0xb4, 0xc2],
+                58_333,
+                58_332,
+                "rqbtc",
+                1,
+                20,
+                1_800_000_200,
+                0x207f_ffff,
+            ),
+        };
         let chain_id = Hash32::tagged_sha3(
             "QBTC/CHAIN-ID/v1",
             format!("{}:{genesis_timestamp}:{GENESIS_MESSAGE}", network.name()).as_bytes(),
@@ -149,6 +161,7 @@ impl ChainParams {
             bech32m_hrp: hrp.to_owned(),
             target_block_interval_secs: block_secs,
             difficulty_adjustment_interval: adjustment_interval,
+            initial_pow_bits,
             coinbase_maturity: 100,
             // Testnet research defaults. They are intentionally not copied from Bitcoin.
             max_block_weight: 8_000_000,
