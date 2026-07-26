@@ -16,7 +16,8 @@ COPY --from=builder /src/target/release/qbtc-wallet /usr/local/bin/qbtc-wallet
 COPY --from=builder /src/target/release/qbtc-wallet-service /usr/local/bin/qbtc-wallet-service
 COPY --from=builder /src/target/release/qbtc-miner /usr/local/bin/qbtc-miner
 COPY --from=builder /src/target/release/qbtc-signer /usr/local/bin/qbtc-signer
+COPY --from=builder /src/target/release/qbtc-demo /usr/local/bin/qbtc-demo
+COPY --from=builder /src/target/release/qbtc-bench /usr/local/bin/qbtc-bench
 RUN mkdir -p /data && chown qbtc:qbtc /data
 USER qbtc
 WORKDIR /data
-

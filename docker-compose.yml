@@ -184,6 +184,13 @@ services:
     networks:
       - qbtc
 
+  demo:
+    <<: *qbtc-build
+    profiles: ["tools"]
+    entrypoint: ["qbtc-demo"]
+    networks:
+      - qbtc
+
 networks:
   qbtc:
     driver: bridge
@@ -194,4 +201,3 @@ volumes:
   node3-data:
   wallet-data:
   prometheus-data:
-

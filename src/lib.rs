@@ -9,6 +9,7 @@ pub mod amount;
 pub mod block;
 pub mod chain;
 pub mod crypto;
+pub mod demo;
 pub mod encoding;
 pub mod finality;
 pub mod hash;

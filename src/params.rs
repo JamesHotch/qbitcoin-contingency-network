@@ -197,14 +197,14 @@ impl ChainParams {
         if self.network != Network::Main {
             return Ok(());
         }
+        if local_committee {
+            return Err(ChainParamsError::LocalCommitteeOnMainnet);
+        }
         if !crate::unaudited_mainnet_build_enabled() {
             return Err(ChainParamsError::MainnetBuildDisabled);
         }
         if !acknowledge_unaudited_mainnet {
             return Err(ChainParamsError::MainnetRuntimeAcknowledgementRequired);
-        }
-        if local_committee {
-            return Err(ChainParamsError::LocalCommitteeOnMainnet);
         }
         if self.committee.members.len() != 11
             || self.committee.quorum == 0
@@ -266,6 +266,15 @@ mod tests {
         assert_eq!(
             main.enforce_startup(true, false),
             Err(ChainParamsError::MainnetBuildDisabled)
+        );
+    }
+
+    #[test]
+    fn local_committee_is_always_blocked_on_mainnet() {
+        let main = ChainParams::for_network(Network::Main);
+        assert_eq!(
+            main.enforce_startup(false, true),
+            Err(ChainParamsError::LocalCommitteeOnMainnet)
         );
     }
 
