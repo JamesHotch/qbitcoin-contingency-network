@@ -126,7 +126,6 @@ impl Mempool {
         self.entries.is_empty()
     }
 
-    #[must_use]
     pub fn entries(&self) -> impl Iterator<Item = (&Hash32, &MempoolEntry)> {
         self.entries.iter()
     }

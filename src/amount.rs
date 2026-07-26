@@ -67,7 +67,7 @@ impl fmt::Debug for Amount {
 
 /// Maximum permitted block subsidy at a height.
 ///
-/// Height zero may claim the nominal subsidy, but QBitCoin's genesis
+/// Height zero may claim the nominal subsidy, but `QBitCoin`'s genesis
 /// specification deliberately claims zero and creates no spendable allocation.
 #[must_use]
 pub const fn block_subsidy(height: u64) -> Amount {

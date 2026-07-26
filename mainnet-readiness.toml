@@ -1,0 +1,119 @@
+# QBitCoin mainnet readiness template.
+# Blank values and false attestations are intentional. This file is not a
+# deployable configuration and must not contain private keys.
+
+schema_version = 1
+network = "main"
+launch_enabled = false
+reviewed_commit = ""
+review_decision = "BLOCKED"
+
+[required_reviews]
+final_consensus_specification = false
+independent_cryptographic_review = false
+independent_consensus_review = false
+independent_wallet_review = false
+legal_review = false
+public_risk_disclosures = false
+
+[network_evidence]
+long_running_public_testnet = false
+testnet_observation_days = 0
+multiple_independent_node_operators = false
+independent_node_operator_count = 0
+multiple_independent_miners = false
+independent_miner_count = 0
+independently_held_committee_keys = false
+reproducible_builds = false
+incident_response_process = false
+
+[consensus_parameters]
+final_chain_parameters = false
+genesis_hash = ""
+genesis_timestamp = 0
+network_magic_hex = ""
+p2p_port = 0
+rpc_port = 0
+bech32m_hrp = ""
+target_block_interval_seconds = 0
+difficulty_adjustment_interval = 0
+initial_pow_bits_hex = ""
+coinbase_maturity = 0
+maximum_block_weight = 0
+maximum_transaction_weight = 0
+maximum_signature_verification_cost = 0
+
+[finality_parameters]
+reviewed = false
+quorum = 0
+member_count = 0
+committee_public_key_manifest_hash = ""
+bootstrap_minimum_depth = 0
+bootstrap_minimum_spacing = 0
+reduced_minimum_depth = 0
+reduced_minimum_spacing = 0
+maximum_rotations = 0
+rotation_activation_delay_blocks = 0
+
+[transition_bootstrap_to_reduced]
+minimum_network_age_seconds = 0
+minimum_height = 0
+minimum_cumulative_chainwork_hex = ""
+minimum_rolling_work_hex = ""
+sustained_adjustment_periods = 0
+minimum_average_block_interval_seconds = 0
+maximum_average_block_interval_seconds = 0
+activation_delay_blocks = 0
+
+[transition_reduced_to_observer]
+minimum_network_age_seconds = 0
+minimum_height = 0
+minimum_cumulative_chainwork_hex = ""
+minimum_rolling_work_hex = ""
+sustained_adjustment_periods = 0
+minimum_average_block_interval_seconds = 0
+maximum_average_block_interval_seconds = 0
+activation_delay_blocks = 0
+
+[transition_observer_to_retired]
+minimum_network_age_seconds = 0
+minimum_height = 0
+minimum_cumulative_chainwork_hex = ""
+minimum_rolling_work_hex = ""
+sustained_adjustment_periods = 0
+minimum_average_block_interval_seconds = 0
+maximum_average_block_interval_seconds = 0
+activation_delay_blocks = 0
+
+[treasury]
+final_decision = false
+enabled = false
+subsidy_basis_points = 0
+expiry_height = 0
+quorum_script_hash = ""
+recipient_disclosures_url = ""
+economic_review_url = ""
+legal_review_url = ""
+
+[implementation_blockers]
+durable_finality_state = false
+on_chain_transition_snapshot_derivation = false
+outbound_peer_manager = false
+header_first_sync = false
+distributed_signer_mode = false
+committee_rotation = false
+wallet_security_complete = false
+performance_parameters_validated = false
+long_duration_fuzzing = false
+disaster_recovery_exercised = false
+
+[attestations]
+# Future entries must identify people and public evidence. Empty means absent.
+cryptography_report_url = ""
+consensus_report_url = ""
+wallet_report_url = ""
+testnet_report_url = ""
+reproducible_build_report_url = ""
+incident_response_runbook_url = ""
+legal_report_reference = ""
+public_disclosure_url = ""

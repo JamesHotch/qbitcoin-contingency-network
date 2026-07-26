@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Research implementation of the QBitCoin contingency-network protocol.
+//! Research implementation of the `QBitCoin` contingency-network protocol.
 //!
 //! This crate is testnet-only, unaudited, and unsuitable for real financial value.
 

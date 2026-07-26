@@ -71,9 +71,7 @@ impl ChainStore {
                 }
                 Err(
                     StorageError::Io(_) | StorageError::Json(_) | StorageError::ManifestMismatch,
-                ) => {
-                    continue;
-                }
+                ) => {}
                 Err(error) => return Err(error),
             }
         }
@@ -108,7 +106,7 @@ impl ChainStore {
         provider: &dyn SignatureProvider,
         manifest: &Manifest,
     ) -> Result<ChainState, StorageError> {
-        let mut blocks = Vec::with_capacity(manifest.tip_height as usize + 1);
+        let mut blocks = Vec::new();
         for height in 0..=manifest.tip_height {
             let bytes = fs::read(self.block_path(height))?;
             blocks.push(serde_json::from_slice::<Block>(&bytes)?);

@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let keys = HybridKeyPair::generate(None);
     let public = keys.public_keys();
     let message = b"QBitCoin benchmark message";
-    let mut signatures = Vec::with_capacity(arguments.iterations as usize);
+    let mut signatures = Vec::new();
 
     let signing_started = Instant::now();
     for _ in 0..arguments.iterations {

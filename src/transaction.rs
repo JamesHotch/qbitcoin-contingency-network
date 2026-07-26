@@ -289,10 +289,8 @@ impl Transaction {
         self.inputs
             .iter()
             .map(|input| match input.witness {
-                SpendWitness::Hybrid(_) => 51,
-                SpendWitness::Recovery(_) => 200,
-                SpendWitness::CommittedHybrid { .. } => 51,
-                SpendWitness::CommittedRecovery { .. } => 200,
+                SpendWitness::Hybrid(_) | SpendWitness::CommittedHybrid { .. } => 51,
+                SpendWitness::Recovery(_) | SpendWitness::CommittedRecovery { .. } => 200,
                 SpendWitness::Empty | SpendWitness::Coinbase { .. } => 0,
             })
             .sum()

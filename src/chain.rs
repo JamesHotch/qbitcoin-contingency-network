@@ -187,7 +187,7 @@ impl ChainState {
 
     #[must_use]
     pub fn active_blocks(&self) -> Vec<Block> {
-        let mut blocks = Vec::with_capacity(self.height() as usize + 1);
+        let mut blocks = Vec::new();
         for height in 0..=self.height() {
             let hash = self
                 .block_at_height(height)

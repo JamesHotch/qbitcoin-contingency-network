@@ -55,5 +55,14 @@ overflow-checks = true
 unsafe_code = "forbid"
 
 [lints.clippy]
-all = "warn"
-pedantic = "warn"
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# These API-documentation and size heuristics are intentionally handled by
+# project-level protocol documents and focused review rather than per-function
+# boilerplate.
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+too_many_arguments = "allow"
+too_many_lines = "allow"
+# Serde's `serialize_with` callback contract requires `&Option<T>`.
+ref_option = "allow"

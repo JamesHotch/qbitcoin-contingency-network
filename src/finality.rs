@@ -488,8 +488,7 @@ impl FinalityState {
         }
         let policy = match self.stage {
             ConsensusStage::BootstrapFinality => &self.params.bootstrap,
-            ConsensusStage::ReducedFinality => &self.params.reduced,
-            ConsensusStage::ObserverOnly => &self.params.reduced,
+            ConsensusStage::ReducedFinality | ConsensusStage::ObserverOnly => &self.params.reduced,
             ConsensusStage::Retired => unreachable!("retired handled above"),
         };
         if chain.height().saturating_sub(proposal.block_height) < policy.minimum_depth {
@@ -773,7 +772,7 @@ mod tests {
         unknown.block_hash = Hash32([99; 32]);
         assert!(matches!(
             finality.process_certificate(&certificate(unknown, 7), &mut chain),
-            Err(FinalityError::UnknownHistoricalBlock) | Err(FinalityError::WrongChainwork)
+            Err(FinalityError::UnknownHistoricalBlock | FinalityError::WrongChainwork)
         ));
 
         let shallow = proposal(&chain, &finality, 4);

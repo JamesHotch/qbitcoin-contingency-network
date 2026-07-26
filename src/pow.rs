@@ -58,7 +58,7 @@ pub fn target_to_compact(target: U256) -> Result<u32, PowError> {
         .iter()
         .position(|byte| *byte != 0)
         .ok_or(PowError::InvalidTarget)?;
-    let mut exponent = (32 - first) as u32;
+    let mut exponent = u32::try_from(32 - first).expect("target width is at most 32 bytes");
     let mut mantissa = if exponent <= 3 {
         target.low_u32() << (8 * (3 - exponent))
     } else {

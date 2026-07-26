@@ -58,14 +58,23 @@ pub struct NodeRuntime {
 }
 
 impl NodeRuntime {
-    pub fn open(params: ChainParams, data_dir: impl AsRef<FsPath>) -> Result<Self, NodeError> {
-        params.enforce_startup(false, params.committee.local_development)?;
+    pub fn open(
+        params: ChainParams,
+        data_dir: impl AsRef<FsPath>,
+        acknowledge_unaudited_mainnet: bool,
+    ) -> Result<Self, NodeError> {
+        params.enforce_startup(
+            acknowledge_unaudited_mainnet,
+            params.committee.local_development,
+        )?;
+        let finality_params = params.finality.clone();
+        let committee = params.committee.clone();
         let mut store = ChainStore::open(data_dir)?;
-        let chain = store.load(params.clone(), &RustCryptoProvider)?;
+        let chain = store.load(params, &RustCryptoProvider)?;
         store.persist_active_chain(&chain)?;
         Ok(Self {
             chain,
-            finality: FinalityState::new(params.finality.clone(), params.committee.clone()),
+            finality: FinalityState::new(finality_params, committee),
             mempool: Mempool::default(),
             peers: PeerBook::default(),
             store,
@@ -190,7 +199,6 @@ impl IntoResponse for ApiError {
     }
 }
 
-#[must_use]
 pub fn router(state: SharedNode) -> Router {
     Router::new()
         .route("/", get(dashboard))
@@ -410,7 +418,7 @@ async fn submit_block(
 
 async fn metrics(State(state): State<SharedNode>) -> Response {
     let node = state.read().await;
-    let stage = node.finality.stage() as u8;
+    let stage_number = node.finality.stage() as u8;
     let checkpoint = node
         .finality
         .latest_checkpoint()
@@ -424,7 +432,7 @@ qbtc_chain_height {}\n\
 qbtc_mempool_transactions {}\n\
 # HELP qbtc_consensus_stage 0 bootstrap, 1 reduced, 2 observer, 3 retired.\n\
 # TYPE qbtc_consensus_stage gauge\n\
-qbtc_consensus_stage {stage}\n\
+qbtc_consensus_stage {stage_number}\n\
 # HELP qbtc_latest_checkpoint_height Latest accepted checkpoint or observation.\n\
 # TYPE qbtc_latest_checkpoint_height gauge\n\
 qbtc_latest_checkpoint_height {checkpoint}\n\

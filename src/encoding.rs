@@ -18,14 +18,22 @@ pub enum EncodingError {
 
 pub fn put_compact(value: u64, output: &mut Vec<u8>) {
     match value {
-        0..=0xfc => output.push(value as u8),
+        0..=0xfc => output.push(u8::try_from(value).expect("match arm bounds the value")),
         0xfd..=0xffff => {
             output.push(0xfd);
-            output.extend_from_slice(&(value as u16).to_le_bytes());
+            output.extend_from_slice(
+                &u16::try_from(value)
+                    .expect("match arm bounds the value")
+                    .to_le_bytes(),
+            );
         }
         0x1_0000..=0xffff_ffff => {
             output.push(0xfe);
-            output.extend_from_slice(&(value as u32).to_le_bytes());
+            output.extend_from_slice(
+                &u32::try_from(value)
+                    .expect("match arm bounds the value")
+                    .to_le_bytes(),
+            );
         }
         _ => {
             output.push(0xff);

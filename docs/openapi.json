@@ -3,47 +3,320 @@
   "info": {
     "title": "QBitCoin experimental node API",
     "version": "0.1.0",
-    "description": "Unaudited testnet-only research API. Do not use for real financial value."
+    "description": "Unaudited testnet-only research API. Bind to a trusted interface and never use it for real financial value."
   },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:58332",
+      "description": "Default regtest node"
+    }
+  ],
   "paths": {
     "/v1/status": {
       "get": {
-        "summary": "Network and finality status",
-        "responses": { "200": { "description": "Current node status" } }
+        "summary": "Read chain, peer, mining, and finality status",
+        "responses": {
+          "200": {
+            "description": "Current node status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/blocks/{height}": {
       "get": {
-        "summary": "Active-chain block by height",
+        "summary": "Read an active-chain block by height",
         "parameters": [
-          { "name": "height", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "height",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         ],
-        "responses": { "200": { "description": "Canonical block" } }
+        "responses": {
+          "200": {
+            "description": "Canonical JSON block"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/mempool": {
+      "get": {
+        "summary": "List accepted unconfirmed transaction identifiers",
+        "responses": {
+          "200": {
+            "description": "Mempool summary"
+          }
+        }
       }
     },
     "/v1/transactions": {
       "post": {
         "summary": "Submit a signed transaction to the mempool",
-        "responses": { "200": { "description": "Transaction accepted" } }
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Canonical Transaction JSON produced by qbtc-wallet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction accepted"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/v1/mining/template": {
       "post": {
-        "summary": "Create a standard block template",
-        "responses": { "200": { "description": "Unmined block candidate" } }
+        "summary": "Create a standard block candidate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Unmined canonical JSON block"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/v1/checkpoints": {
       "post": {
         "summary": "Submit a multi-signer checkpoint certificate",
-        "description": "Certificates can protect only already-valid active-chain history while authority is enabled.",
-        "responses": { "200": { "description": "Finality or observation result" } }
+        "description": "A certificate can protect only already-valid active-chain history while authority is enabled. It cannot bypass block validation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Finalized, observed, or ignored-retired result"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/v1/blocks": {
       "post": {
         "summary": "Submit a mined block",
-        "responses": { "200": { "description": "Block validation result" } }
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Block validation and activation result"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Read Prometheus text exposition",
+        "responses": {
+          "200": {
+            "description": "Prometheus metrics",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Status": {
+        "type": "object",
+        "required": [
+          "network",
+          "chain_id",
+          "height",
+          "tip_hash",
+          "cumulative_chainwork",
+          "consensus_stage",
+          "projection_warning"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "enum": [
+              "main",
+              "testnet",
+              "regtest"
+            ]
+          },
+          "chain_id": {
+            "type": "string"
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tip_hash": {
+            "type": "string"
+          },
+          "cumulative_chainwork": {
+            "type": "string"
+          },
+          "difficulty_bits": {
+            "type": "integer"
+          },
+          "recent_reorg_depth": {
+            "type": "integer"
+          },
+          "consensus_stage": {
+            "type": "string",
+            "enum": [
+              "BOOTSTRAP_FINALITY",
+              "REDUCED_FINALITY",
+              "OBSERVER_ONLY",
+              "RETIRED"
+            ]
+          },
+          "latest_checkpoint_height": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "latest_checkpoint_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quorum_required": {
+            "type": "integer"
+          },
+          "configured_signers": {
+            "type": "integer"
+          },
+          "signer_availability": {
+            "type": "integer"
+          },
+          "pending_transition_height": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "mempool_transactions": {
+            "type": "integer"
+          },
+          "peer_count": {
+            "type": "integer"
+          },
+          "peer_diversity_groups": {
+            "type": "integer"
+          },
+          "uptime_seconds": {
+            "type": "integer"
+          },
+          "projected_transition_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "projection_warning": {
+            "type": "string"
+          }
+        }
+      },
+      "TemplateRequest": {
+        "type": "object",
+        "required": [
+          "miner_public_keys"
+        ],
+        "properties": {
+          "miner_public_keys": {
+            "type": "object"
+          },
+          "timestamp": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "extra_nonce": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Request rejected",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

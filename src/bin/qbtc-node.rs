@@ -18,6 +18,8 @@ struct Arguments {
     rpc_bind: SocketAddr,
     #[arg(long, default_value = "0.0.0.0:58333")]
     p2p_bind: SocketAddr,
+    #[arg(long, default_value_t = false)]
+    acknowledge_unaudited_mainnet: bool,
 }
 
 #[tokio::main]
@@ -28,8 +30,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
     let arguments = Arguments::parse();
-    let params = ChainParams::for_network(parse_network(&arguments.chain)?);
-    let node = Arc::new(RwLock::new(NodeRuntime::open(params, arguments.data_dir)?));
+    let network = parse_network(&arguments.chain)?;
+    if network == Network::Main {
+        eprintln!(
+            "UNSAFE MAINNET START REQUESTED:\n\
+This software is unaudited and the mainnet parameters are intentionally incomplete.\n\
+Do not use this build to hold or transfer real financial value."
+        );
+    }
+    let params = ChainParams::for_network(network);
+    let node = Arc::new(RwLock::new(NodeRuntime::open(
+        params,
+        arguments.data_dir,
+        arguments.acknowledge_unaudited_mainnet,
+    )?));
 
     tracing::warn!("QBitCoin is unaudited testnet research software; never use it for real value");
     let http = serve_http(Arc::clone(&node), arguments.rpc_bind);
