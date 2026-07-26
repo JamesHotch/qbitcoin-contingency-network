@@ -28,6 +28,10 @@ pub enum ChainError {
     ChainworkOverflow,
     #[error("block height arithmetic overflow")]
     HeightOverflow,
+    #[error("candidate chain would replace a protected checkpoint")]
+    FinalizedCheckpointConflict,
+    #[error("checkpoint does not identify valid active-chain history")]
+    InvalidCheckpointGuard,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +41,12 @@ pub struct SubmitOutcome {
     pub chainwork: U256,
     pub became_active: bool,
     pub reorg_depth: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckpointGuard {
+    pub height: u64,
+    pub hash: Hash32,
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +61,7 @@ pub struct ChainState {
     params: ChainParams,
     blocks: BTreeMap<Hash32, IndexedBlock>,
     active_tip: Hash32,
+    checkpoint_guard: Option<CheckpointGuard>,
 }
 
 impl ChainState {
@@ -83,6 +94,7 @@ impl ChainState {
             params,
             blocks,
             active_tip: hash,
+            checkpoint_guard: None,
         })
     }
 
@@ -114,6 +126,41 @@ impl ChainState {
     #[must_use]
     pub fn active_utxos(&self) -> &UtxoSet {
         &self.blocks[&self.active_tip].utxos
+    }
+
+    #[must_use]
+    pub fn tip_timestamp(&self) -> u64 {
+        self.blocks[&self.active_tip].block.header.timestamp
+    }
+
+    #[must_use]
+    pub const fn checkpoint_guard(&self) -> Option<CheckpointGuard> {
+        self.checkpoint_guard
+    }
+
+    pub fn install_checkpoint_guard(
+        &mut self,
+        height: u64,
+        hash: Hash32,
+    ) -> Result<(), ChainError> {
+        if self.block_at_height(height) != Some(hash)
+            || self
+                .checkpoint_guard
+                .is_some_and(|current| height < current.height)
+        {
+            return Err(ChainError::InvalidCheckpointGuard);
+        }
+        self.checkpoint_guard = Some(CheckpointGuard { height, hash });
+        Ok(())
+    }
+
+    pub fn clear_checkpoint_guard(&mut self) {
+        self.checkpoint_guard = None;
+    }
+
+    #[must_use]
+    pub fn chainwork_at(&self, hash: Hash32) -> Option<U256> {
+        self.blocks.get(&hash).map(|block| block.chainwork)
     }
 
     pub fn expected_bits_after(&self, parent_hash: Hash32) -> Result<u32, ChainError> {
@@ -208,6 +255,10 @@ impl ChainState {
             .ok_or(ChainError::ChainworkOverflow)?;
 
         let old_tip = self.active_tip;
+        let became_active = chainwork > self.blocks[&old_tip].chainwork;
+        if became_active && !self.candidate_respects_checkpoint(hash, parent_hash, height) {
+            return Err(ChainError::FinalizedCheckpointConflict);
+        }
         self.blocks.insert(
             hash,
             IndexedBlock {
@@ -217,7 +268,6 @@ impl ChainState {
                 utxos: next_utxos,
             },
         );
-        let became_active = chainwork > self.blocks[&old_tip].chainwork;
         let reorg_depth = if became_active {
             let depth = self.reorg_depth(old_tip, hash);
             self.active_tip = hash;
@@ -251,7 +301,7 @@ impl ChainState {
         self.ancestor_at_height(self.active_tip, height)
     }
 
-    fn block_template_on(
+    pub(crate) fn block_template_on(
         &self,
         parent_hash: Hash32,
         miner_policy: OutputPolicy,
@@ -309,6 +359,24 @@ impl ChainState {
     fn parent_hash(&self, hash: Hash32) -> Option<Hash32> {
         let block = self.blocks.get(&hash)?;
         (block.height > 0).then_some(block.block.header.previous_block)
+    }
+
+    fn candidate_respects_checkpoint(
+        &self,
+        candidate_hash: Hash32,
+        parent_hash: Hash32,
+        candidate_height: u64,
+    ) -> bool {
+        let Some(guard) = self.checkpoint_guard else {
+            return true;
+        };
+        if candidate_height < guard.height {
+            return false;
+        }
+        if candidate_height == guard.height {
+            return candidate_hash == guard.hash;
+        }
+        self.ancestor_at_height(parent_hash, guard.height) == Some(guard.hash)
     }
 
     fn ancestor_at_height(&self, hash: Hash32, height: u64) -> Option<Hash32> {

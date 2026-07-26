@@ -9,6 +9,7 @@ pub mod block;
 pub mod chain;
 pub mod crypto;
 pub mod encoding;
+pub mod finality;
 pub mod hash;
 pub mod params;
 pub mod pow;

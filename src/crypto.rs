@@ -177,6 +177,41 @@ impl SignatureProvider for RustCryptoProvider {
     }
 }
 
+/// ML-DSA-only key material used by checkpoint signers. Like wallet key
+/// material, it cannot be formatted or serialized accidentally.
+pub struct MlDsaKeyPair {
+    signing_key: MlDsaSigningKey<MlDsa65>,
+}
+
+impl MlDsaKeyPair {
+    #[must_use]
+    pub fn from_seed(seed: [u8; 32]) -> Self {
+        Self {
+            signing_key: MlDsaSigningKey::<MlDsa65>::from_seed(&seed.into()),
+        }
+    }
+
+    #[must_use]
+    pub fn generate() -> Self {
+        Self {
+            signing_key: MlDsaSigningKey::<MlDsa65>::generate(),
+        }
+    }
+
+    #[must_use]
+    pub fn public_key(&self) -> Vec<u8> {
+        self.signing_key.verifying_key().encode().to_vec()
+    }
+
+    pub fn sign_digest(&self, digest: &Hash32, domain: DomainTag) -> Result<Vec<u8>, CryptoError> {
+        self.signing_key
+            .expanded_key()
+            .sign_deterministic(digest.0.as_slice(), domain.as_str().as_bytes())
+            .map(|signature| signature.encode().to_vec())
+            .map_err(|_| CryptoError::SigningFailed)
+    }
+}
+
 /// In-memory hybrid signing material. It intentionally implements neither
 /// `Debug` nor serialization so secrets cannot be logged accidentally.
 pub struct HybridKeyPair {

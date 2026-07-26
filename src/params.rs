@@ -1,4 +1,5 @@
 use crate::amount::Amount;
+use crate::finality::{CommitteeConfig, FinalityParams};
 use crate::hash::Hash32;
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -15,6 +16,8 @@ pub enum ChainParamsError {
     MainnetRuntimeAcknowledgementRequired,
     #[error("local committee mode is prohibited on mainnet")]
     LocalCommitteeOnMainnet,
+    #[error("mainnet committee public keys and transition thresholds are unconfigured")]
+    MainnetFinalityUnconfigured,
     #[error("treasury allocation exceeds its declared subsidy fraction")]
     InvalidTreasuryAllocation,
 }
@@ -100,6 +103,8 @@ pub struct ChainParams {
     pub genesis_timestamp: u64,
     pub genesis_allocation: Amount,
     pub treasury: TreasuryParams,
+    pub committee: CommitteeConfig,
+    pub finality: FinalityParams,
     pub static_seeds: Vec<SocketAddr>,
 }
 
@@ -147,9 +152,16 @@ impl ChainParams {
                 0x207f_ffff,
             ),
         };
+        let committee = if network == Network::Main {
+            CommitteeConfig::unconfigured_mainnet()
+        } else {
+            CommitteeConfig::development()
+        };
+        let finality = FinalityParams::for_network(network);
+        let chain_label = format!("{}:{genesis_timestamp}:{GENESIS_MESSAGE}:", network.name());
         let chain_id = Hash32::tagged_sha3(
             "QBTC/CHAIN-ID/v1",
-            format!("{}:{genesis_timestamp}:{GENESIS_MESSAGE}", network.name()).as_bytes(),
+            &[chain_label.as_bytes(), &committee.commitment().0].concat(),
         );
 
         Self {
@@ -171,6 +183,8 @@ impl ChainParams {
             genesis_timestamp,
             genesis_allocation: Amount::ZERO,
             treasury: TreasuryParams::DISABLED,
+            committee,
+            finality,
             static_seeds: vec![SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), p2p_port)],
         }
     }
@@ -191,6 +205,12 @@ impl ChainParams {
         }
         if local_committee {
             return Err(ChainParamsError::LocalCommitteeOnMainnet);
+        }
+        if self.committee.members.len() != 11
+            || self.committee.quorum == 0
+            || !self.finality.mainnet_thresholds_reviewed
+        {
+            return Err(ChainParamsError::MainnetFinalityUnconfigured);
         }
         Ok(())
     }
