@@ -1,0 +1,15 @@
+target
+.git
+data
+wallets
+devnet-data
+coverage
+artifacts
+*.log
+*.key
+*.pem
+*.seed
+*.wallet
+.env
+.env.*
+
